@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-+GYxxJ5jotbveZiZr38vN44P7YpZO9AttAIGhx8SBbM=' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'sha256-+9mHZe7xpIVsN5fN17polb1YrkAwv8xzfxxdTX/mWxc=' https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https: data: blob:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -439,7 +439,7 @@ body.adm-dragging{cursor:grabbing;user-select:none}
 <style id="adm-tour-css">
 .adm-tour-layer{position:fixed;inset:0;z-index:10000;pointer-events:auto}
 .adm-tour-dim{position:fixed;inset:0;background:rgba(0,0,0,.62)}
-.adm-tour-spot{position:fixed;border-radius:14px;border:2px solid var(--adm-accent,#C9A227);box-shadow:0 0 0 9999px rgba(0,0,0,.62);transition:top .3s ease,left .3s ease,width .3s ease,height .3s ease;pointer-events:none;animation:admTourPulse 1.6s ease-in-out infinite}
+.adm-tour-spot{position:fixed;border-radius:14px;border:2px solid var(--adm-accent,#C9A227);box-shadow:0 0 18px rgba(201,162,39,.45);transition:top .3s ease,left .3s ease,width .3s ease,height .3s ease;pointer-events:none;animation:admTourPulse 1.6s ease-in-out infinite}
 @keyframes admTourPulse{0%,100%{outline:0 solid transparent}50%{outline:6px solid rgba(201,162,39,.28)}}
 .adm-tour-card{position:fixed;left:50%;transform:translateX(-50%);width:min(420px,calc(100vw - 24px));background:#fff;color:#1d1d1f;border-radius:20px;padding:18px 18px 14px;box-shadow:0 24px 60px rgba(0,0,0,.35);font-family:var(--apple-font,Inter,system-ui,sans-serif)}
 .adm-tour-card.is-bottom{bottom:max(16px,env(safe-area-inset-bottom))}
@@ -5892,6 +5892,65 @@ function App() {
             e.target.value = "";
         }
     }
+    /* PIN oluşturulduktan sonra açılan buton tanıtım turu */
+    const TOUR_STEPS = [
+        { sel: "panel", icon: "grid", title: "Genel Bakış", text: "Kataloğunun özeti: kaç ürün, kaç kategori olduğunu ve eksikleri burada görürsün. Nereden başlayacağını buradan anla." },
+        { sel: "urunler", icon: "box", title: "Ürünler", text: "Yeni ürün ekle, fotoğraf yükle, ölçü ve açıklama yaz. Ürünleri sürükleyerek sırala veya sil. Üstteki arama kutusu ürün bulmanı sağlar." },
+        { sel: "fiyat", icon: "tag", title: "Fiyatlar & Kurlar", text: "TL, USD veya EUR fiyat gir. Kur yazınca fiyatlar otomatik çevrilir. Toplu yüzde zam / indirim de buradan yapılır." },
+        { sel: "katalog", icon: "list", title: "Kategoriler & Kapaklar", text: "Kategori oluştur, İngilizce adını yaz, kapak görseli ekle ve kategorilerin sırasını değiştir." },
+        { sel: "pdf", icon: "file", title: "PDF & Katalog", text: "Fiyat listesi ve katalog PDF'ini hazırla. Şablonu, kapak logosunu ve sayfa düzenini seç; önizleyip indir." },
+        { sel: "genel", icon: "palette", title: "Görünüm & Ayarlar", text: "Site adı, logo, renkler ve tema şablonu. AI İngilizce çeviri, PIN değiştirme ve yedek indir / yedekten yükle de burada." },
+        { sel: "save", icon: "save", title: "Kaydet ve yayınla", text: "Yaptığın her değişikliği bu cihaza kalıcı kaydeder. Kaydetmeden çıkmaya çalışırsan uyarı alırsın." },
+        { sel: "help", icon: "?", title: "Yardım turu (?)", text: "Bu turu istediğin zaman tekrar açmak için bu butona bas." }
+    ];
+    const TOUR_NAV = ["panel", "urunler", "fiyat", "katalog", "pdf", "genel"];
+    function tourFinish() {
+        markTourDone();
+        setTourStep(null);
+        setTourRect(null);
+    }
+    function tourGo(i) {
+        const st = TOUR_STEPS[i];
+        if (!st) { tourFinish(); return; }
+        if (TOUR_NAV.includes(st.sel))
+            admGo(st.sel);
+        setTourStep(i);
+    }
+    function tourTarget(sel) {
+        const all = Array.from(document.querySelectorAll('[data-tour="' + sel + '"]'));
+        return all.find(n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0; }) || null;
+    }
+    useEffect(() => {
+        if (typeof tourStep !== "number") { setTourRect(null); return; }
+        const st = TOUR_STEPS[tourStep];
+        if (!st) return;
+        let raf = 0;
+        const measure = () => {
+            const el = tourTarget(st.sel);
+            if (!el) { setTourRect(null); return; }
+            const r = el.getBoundingClientRect();
+            setTourRect({ top: r.top - 6, left: r.left - 6, width: r.width + 12, height: r.height + 12 });
+        };
+        const el = tourTarget(st.sel);
+        try { if (el) el.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" }); } catch (_) { }
+        measure();
+        const t1 = setTimeout(measure, 350), t2 = setTimeout(measure, 750);
+        const onR = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
+        window.addEventListener("resize", onR);
+        window.addEventListener("scroll", onR, true);
+        return () => { clearTimeout(t1); clearTimeout(t2); cancelAnimationFrame(raf); window.removeEventListener("resize", onR); window.removeEventListener("scroll", onR, true); };
+    }, [tourStep]);
+    useEffect(() => {
+        if (tourStep === null) return;
+        const onKey = e => {
+            if (e.key === "Escape") { e.stopPropagation(); tourFinish(); }
+            else if (typeof tourStep === "number" && e.key === "ArrowRight") tourGo(tourStep + 1);
+            else if (typeof tourStep === "number" && e.key === "ArrowLeft" && tourStep > 0) tourGo(tourStep - 1);
+        };
+        window.addEventListener("keydown", onKey, true);
+        return () => window.removeEventListener("keydown", onKey, true);
+    }, [tourStep]);
+    useEffect(() => { if (!panelOpen) { setTourStep(null); setTourRect(null); } }, [panelOpen]);
     if (loading)
         return React.createElement("div", { style: { minHeight: "100vh", background: "#F5F5F7", color: "#6E6E73", fontFamily: "-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',Inter,system-ui,sans-serif", display: "flex", alignItems: "center", justifyContent: "center" } }, language === "EN" ? "Loading data…" : "Veriler yükleniyor…");
     if (!data)
@@ -6521,65 +6580,6 @@ function App() {
                         React.createElement("b", null, "+ Yeni kategori"),
                         React.createElement("span", null, "Olu\u015Ftur ve \u00FCr\u00FCn ekle")))));
     }
-    /* PIN oluşturulduktan sonra açılan buton tanıtım turu */
-    const TOUR_STEPS = [
-        { sel: "panel", icon: "grid", title: "Genel Bakış", text: "Kataloğunun özeti: kaç ürün, kaç kategori olduğunu ve eksikleri burada görürsün. Nereden başlayacağını buradan anla." },
-        { sel: "urunler", icon: "box", title: "Ürünler", text: "Yeni ürün ekle, fotoğraf yükle, ölçü ve açıklama yaz. Ürünleri sürükleyerek sırala veya sil. Üstteki arama kutusu ürün bulmanı sağlar." },
-        { sel: "fiyat", icon: "tag", title: "Fiyatlar & Kurlar", text: "TL, USD veya EUR fiyat gir. Kur yazınca fiyatlar otomatik çevrilir. Toplu yüzde zam / indirim de buradan yapılır." },
-        { sel: "katalog", icon: "list", title: "Kategoriler & Kapaklar", text: "Kategori oluştur, İngilizce adını yaz, kapak görseli ekle ve kategorilerin sırasını değiştir." },
-        { sel: "pdf", icon: "file", title: "PDF & Katalog", text: "Fiyat listesi ve katalog PDF'ini hazırla. Şablonu, kapak logosunu ve sayfa düzenini seç; önizleyip indir." },
-        { sel: "genel", icon: "palette", title: "Görünüm & Ayarlar", text: "Site adı, logo, renkler ve tema şablonu. AI İngilizce çeviri, PIN değiştirme ve yedek indir / yedekten yükle de burada." },
-        { sel: "save", icon: "save", title: "Kaydet ve yayınla", text: "Yaptığın her değişikliği bu cihaza kalıcı kaydeder. Kaydetmeden çıkmaya çalışırsan uyarı alırsın." },
-        { sel: "help", icon: "?", title: "Yardım turu (?)", text: "Bu turu istediğin zaman tekrar açmak için bu butona bas." }
-    ];
-    const TOUR_NAV = ["panel", "urunler", "fiyat", "katalog", "pdf", "genel"];
-    function tourFinish() {
-        markTourDone();
-        setTourStep(null);
-        setTourRect(null);
-    }
-    function tourGo(i) {
-        const st = TOUR_STEPS[i];
-        if (!st) { tourFinish(); return; }
-        if (TOUR_NAV.includes(st.sel))
-            admGo(st.sel);
-        setTourStep(i);
-    }
-    function tourTarget(sel) {
-        const all = Array.from(document.querySelectorAll('[data-tour="' + sel + '"]'));
-        return all.find(n => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0; }) || null;
-    }
-    useEffect(() => {
-        if (typeof tourStep !== "number") { setTourRect(null); return; }
-        const st = TOUR_STEPS[tourStep];
-        if (!st) return;
-        let raf = 0;
-        const measure = () => {
-            const el = tourTarget(st.sel);
-            if (!el) { setTourRect(null); return; }
-            const r = el.getBoundingClientRect();
-            setTourRect({ top: r.top - 6, left: r.left - 6, width: r.width + 12, height: r.height + 12 });
-        };
-        const el = tourTarget(st.sel);
-        try { if (el) el.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" }); } catch (_) { }
-        measure();
-        const t1 = setTimeout(measure, 350), t2 = setTimeout(measure, 750);
-        const onR = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(measure); };
-        window.addEventListener("resize", onR);
-        window.addEventListener("scroll", onR, true);
-        return () => { clearTimeout(t1); clearTimeout(t2); cancelAnimationFrame(raf); window.removeEventListener("resize", onR); window.removeEventListener("scroll", onR, true); };
-    }, [tourStep]);
-    useEffect(() => {
-        if (tourStep === null) return;
-        const onKey = e => {
-            if (e.key === "Escape") { e.stopPropagation(); tourFinish(); }
-            else if (typeof tourStep === "number" && e.key === "ArrowRight") tourGo(tourStep + 1);
-            else if (typeof tourStep === "number" && e.key === "ArrowLeft" && tourStep > 0) tourGo(tourStep - 1);
-        };
-        window.addEventListener("keydown", onKey, true);
-        return () => window.removeEventListener("keydown", onKey, true);
-    }, [tourStep]);
-    useEffect(() => { if (!panelOpen) { setTourStep(null); setTourRect(null); } }, [panelOpen]);
     function admRenderTour() {
         if (tourStep === null) return null;
         const h = React.createElement;
@@ -6605,7 +6605,8 @@ function App() {
         const vh = typeof window !== "undefined" ? window.innerHeight : 800;
         const pos = tourRect && tourRect.top + tourRect.height / 2 > vh * 0.55 ? "is-top" : "is-bottom";
         return h("div", { className: "adm-tour-layer", role: "dialog", "aria-modal": "true", "aria-label": "Panel tanıtım turu" },
-            tourRect ? h("div", { className: "adm-tour-spot", style: { top: tourRect.top, left: tourRect.left, width: tourRect.width, height: tourRect.height } }) : h("div", { className: "adm-tour-dim" }),
+            tourRect ? h("div", { className: "adm-tour-dim", style: { clipPath: "polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, " + tourRect.left + "px " + tourRect.top + "px, " + (tourRect.left + tourRect.width) + "px " + tourRect.top + "px, " + (tourRect.left + tourRect.width) + "px " + (tourRect.top + tourRect.height) + "px, " + tourRect.left + "px " + (tourRect.top + tourRect.height) + "px, " + tourRect.left + "px " + tourRect.top + "px)" } }) : h("div", { className: "adm-tour-dim" }),
+            tourRect && h("div", { className: "adm-tour-spot", style: { top: tourRect.top, left: tourRect.left, width: tourRect.width, height: tourRect.height } }),
             h("div", { className: "adm-tour-card " + pos, "aria-live": "polite" },
                 h("div", { className: "adm-tour-head" },
                     h("span", { className: "adm-tour-ico" }, st.icon === "?" ? "?" : h(AdmIcon, { name: st.icon, size: 20 })),
